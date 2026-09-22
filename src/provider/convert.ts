@@ -197,7 +197,7 @@ export function convertTools(
 		function: {
 			name: tool.name,
 			description: tool.description,
-			parameters: tool.inputSchema as Record<string, unknown> | undefined,
+			parameters: (tool.inputSchema as Record<string, unknown> | undefined) ?? { type: 'object', properties: {} },
 		},
 	}));
 }
