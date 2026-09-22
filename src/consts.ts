@@ -49,6 +49,37 @@ export const WALKTHROUGH_ID = 'Vizards.deepseek-v4-for-copilot#deepseekGettingSt
 /** Available DeepSeek models exposed through the language model provider. */
 export const MODELS: ModelDefinition[] = [
 	{
+		id: 'deepseek-flash',
+		name: 'DeepSeek V4.1 Flash',
+		family: 'deepseek',
+		version: 'v4.1',
+		detail: 'Vision and thinking mode',
+		maxInputTokens: 655360,
+		maxOutputTokens: 393216,
+		capabilities: {
+			toolCalling: DEEPSEEK_TOOLS_LIMIT,
+			imageInput: true,
+			nativeImageInput: true,
+			thinking: {
+				supportedEfforts: ['low', 'high', 'max'],
+				defaultEffort: 'high',
+				canDisable: true,
+			},
+		},
+		requiresThinkingParam: true,
+		pricing: {
+			USD: {
+				offPeak: { cacheHitInput: 0.003, cacheMissInput: 0.15, output: 0.6 },
+				peak: { cacheHitInput: 0.006, cacheMissInput: 0.3, output: 1.2 },
+			},
+			CNY: {
+				offPeak: { cacheHitInput: 0.02, cacheMissInput: 1, output: 4 },
+				peak: { cacheHitInput: 0.04, cacheMissInput: 2, output: 8 },
+			},
+		},
+		priceCategory: 'low',
+	},
+	{
 		id: 'deepseek-v4-flash',
 		name: 'DeepSeek V4 Flash',
 		family: 'deepseek',
@@ -59,12 +90,23 @@ export const MODELS: ModelDefinition[] = [
 		capabilities: {
 			toolCalling: DEEPSEEK_TOOLS_LIMIT,
 			imageInput: true,
-			thinking: true,
+			nativeImageInput: false,
+			thinking: {
+				supportedEfforts: ['low', 'high', 'max'],
+				defaultEffort: 'high',
+				canDisable: true,
+			},
 		},
 		requiresThinkingParam: true,
 		pricing: {
-			USD: { cacheHitInput: 0.0028, cacheMissInput: 0.14, output: 0.28 },
-			CNY: { cacheHitInput: 0.02, cacheMissInput: 1, output: 2 },
+			USD: {
+				offPeak: { cacheHitInput: 0.007, cacheMissInput: 0.22, output: 0.66 },
+				peak: { cacheHitInput: 0.014, cacheMissInput: 0.44, output: 1.32 },
+			},
+			CNY: {
+				offPeak: { cacheHitInput: 0.05, cacheMissInput: 1.5, output: 4.5 },
+				peak: { cacheHitInput: 0.1, cacheMissInput: 3, output: 9 },
+			},
 		},
 		priceCategory: 'low',
 	},
@@ -79,12 +121,54 @@ export const MODELS: ModelDefinition[] = [
 		capabilities: {
 			toolCalling: DEEPSEEK_TOOLS_LIMIT,
 			imageInput: true,
-			thinking: true,
+			nativeImageInput: false,
+			thinking: {
+				supportedEfforts: ['low', 'high', 'max'],
+				defaultEffort: 'high',
+				canDisable: true,
+			},
 		},
 		requiresThinkingParam: true,
 		pricing: {
-			USD: { cacheHitInput: 0.003625, cacheMissInput: 0.435, output: 0.87 },
-			CNY: { cacheHitInput: 0.025, cacheMissInput: 3, output: 6 },
+			USD: {
+				offPeak: { cacheHitInput: 0.022, cacheMissInput: 0.66, output: 1.98 },
+				peak: { cacheHitInput: 0.044, cacheMissInput: 1.32, output: 3.96 },
+			},
+			CNY: {
+				offPeak: { cacheHitInput: 0.15, cacheMissInput: 4.5, output: 13.5 },
+				peak: { cacheHitInput: 0.3, cacheMissInput: 9, output: 27 },
+			},
+		},
+		priceCategory: 'low',
+	},
+	{
+		id: 'deepseek-v4-flash-vision-exp',
+		name: 'DeepSeek V4 Flash Vision Exp',
+		family: 'deepseek',
+		version: 'v4',
+		detail: 'Experimental native vision model',
+		maxInputTokens: 655360,
+		maxOutputTokens: 393216,
+		capabilities: {
+			toolCalling: DEEPSEEK_TOOLS_LIMIT,
+			imageInput: true,
+			nativeImageInput: true,
+			thinking: {
+				supportedEfforts: ['low', 'high', 'max'],
+				defaultEffort: 'high',
+				canDisable: true,
+			},
+		},
+		requiresThinkingParam: true,
+		pricing: {
+			USD: {
+				offPeak: { cacheHitInput: 0.007, cacheMissInput: 0.22, output: 0.66 },
+				peak: { cacheHitInput: 0.014, cacheMissInput: 0.44, output: 1.32 },
+			},
+			CNY: {
+				offPeak: { cacheHitInput: 0.05, cacheMissInput: 1.5, output: 4.5 },
+				peak: { cacheHitInput: 0.1, cacheMissInput: 3, output: 9 },
+			},
 		},
 		priceCategory: 'low',
 	},

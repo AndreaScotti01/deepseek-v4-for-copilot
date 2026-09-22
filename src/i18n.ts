@@ -19,10 +19,28 @@ type Translations = Record<string, string>;
 
 const zh: Translations = {
 	// Model descriptions
+	'model.deepseek-flash.detail': '图像理解与思考模式',
+	'model.deepseek-flash.tooltip': 'DeepSeek V4.1 Flash，支持图片与文本输入、思考模式和工具调用。',
+	'model.retirement.custom':
+		'**旧模型入口。**  \n请先确认服务商支持 DeepSeek V4.1 Flash。  \n选择“DeepSeek V4.1 Flash”以使用新模型。',
+	'model.retirement.flashRetired':
+		'**已下线。**  \n请求由 DeepSeek V4.1 Flash 提供服务，并按 Flash 价格计费。  \n选择“DeepSeek V4.1 Flash”以使用新模型。',
 	'model.flash.detail': '快速高效',
 	'model.pro.detail': '深度推理',
+	'model.flash-vision-exp.detail': '原生视觉实验模型',
 	'model.flash.tooltip': '快速高效的 DeepSeek V4 模型，推理能力接近 V4 Pro，API 定价更经济。',
 	'model.pro.tooltip': 'DeepSeek V4 模型，面向 Agent 编程、广泛世界知识和高阶推理任务。',
+	'model.pricing.currentPeak': '高峰时段',
+	'model.pricing.currentOffPeak': '空闲时段',
+	'model.pricing.inputLabel': '输入',
+	'model.pricing.cacheHitInputLabel': '输入 (缓存命中)',
+	'model.pricing.outputLabel': '输出',
+	'model.pricing.unitSuffix': ' / 百万 tokens',
+	'model.pricing.periodStarts': '{1}进入{0}',
+	'model.pricing.transitionTime.today': '{0}',
+	'model.pricing.transitionTime.tomorrow': '明天 {0}',
+	'model.pricing.transitionTime.weekday': '{0} {1}',
+	'model.flash-vision-exp.tooltip': 'DeepSeek V4 Flash 视觉实验模型，支持原生图片与文本输入。',
 
 	// API Key
 	'auth.apiKeyRequiredDetail': '请先配置 API Key',
@@ -31,12 +49,28 @@ const zh: Translations = {
 	'auth.emptyValidation': 'API Key 不能为空',
 	'auth.saved': 'API Key 已安全保存。',
 	'auth.removed': 'API Key 已移除。',
-	'auth.notConfigured': 'API Key 未配置，请在命令面板运行 "DeepSeek: 设置 API Key"。',
+	'auth.clearConfirm': '清除已保存的 API Key？',
+	'auth.clearDetail': '清除后，再次使用时可能需要重新设置 API Key。',
+	'auth.clearAction': '清除 API Key',
+	'auth.notConfigured': '尚未配置 API Key，请先设置 API Key 后重试。',
+
+	// Settings
+	'settings.resetBaseUrl.title': '恢复 DeepSeek Base URL 默认配置',
+	'settings.resetBaseUrl.chooseScope': '选择要重置的范围；仅移除该范围的自定义地址',
+	'settings.resetBaseUrl.user': '用户设置',
+	'settings.resetBaseUrl.workspace': '当前工作区',
+	'settings.resetBaseUrl.current': '当前配置：{0}',
+	'settings.resetBaseUrl.notConfigured': '未自定义，无需重置',
+	'settings.resetBaseUrl.after': '重置后生效地址：{0}',
+	'settings.resetBaseUrl.afterInherited': '重置后继承其余配置，实际生效地址请查看设置',
+	'settings.resetBaseUrl.failed': '重置 Base URL 失败，请运行 "DeepSeek: 显示日志" 查看详情。',
 
 	// Thinking Effort — short labels for model picker dropdown
 	'status.thinking': '思考模式',
 	'thinking.none': '停用',
 	'thinking.none.desc': '停用思考，响应更快',
+	'thinking.low': '轻量',
+	'thinking.low.desc': '轻量推理，适合快速编辑和简单任务',
 	'thinking.high': '标准',
 	'thinking.high.desc': '推荐日常使用',
 	'thinking.max': '深度',
@@ -50,7 +84,7 @@ const zh: Translations = {
 	'vision.action.configureProxy': '配置视觉代理',
 	'vision.panel.title': 'DeepSeek 视觉代理',
 	'vision.panel.description':
-		'配置一个支持图片输入的模型，用来先把图片转换成文字描述，再把描述随消息发送给 DeepSeek。图片本身不会发送给 DeepSeek。',
+		'为 V4 Flash 和 Pro 入口配置一个将图片转换成文字描述的视觉模型。V4.1 Flash 和 Vision Exp 会直接处理原图。',
 	'vision.panel.source.vscodeLm': 'VS Code 模型',
 	'vision.panel.source.apiEndpoint': 'API 端点',
 	'vision.panel.field.source': '视觉代理来源',
@@ -61,9 +95,11 @@ const zh: Translations = {
 	'vision.panel.field.modelId': '模型 ID',
 	'vision.panel.field.customHeaders': '自定义 headers JSON',
 	'vision.panel.field.extraBody': '额外请求体 JSON',
+	'vision.panel.field.timeoutMs': '请求超时 (毫秒)',
 	'vision.panel.hint.customHeaders':
 		'Header 会随配置保存。建议尽量把服务商 token 放在 API Key 输入框中。',
 	'vision.panel.hint.extraBody': '会合并进请求体，不能覆盖 model、messages、input 或 stream。',
+	'vision.panel.hint.timeoutMs': '留空使用默认 30 秒。值必须大于 0。',
 	'vision.panel.placeholder.openaiEndpoint': 'https://api.example.com/v1/chat/completions',
 	'vision.panel.placeholder.openaiResponsesEndpoint': 'https://api.example.com/v1/responses',
 	'vision.panel.placeholder.anthropicEndpoint': 'https://api.example.com/v1/messages',
@@ -197,7 +233,6 @@ const zh: Translations = {
 
 	// Extension
 	'extension.activateFailed': 'DeepSeek 激活失败，请运行 "DeepSeek: 显示日志" 查看详情。',
-	'extension.deactivateFailed': 'DeepSeek 停用异常',
 	'extension.welcomeFailed': '欢迎引导加载异常',
 	'extension.openRequestDumpsFolderFailed':
 		'打开请求 dump 目录失败，请运行 "DeepSeek: 显示日志" 查看详情。',
@@ -205,12 +240,32 @@ const zh: Translations = {
 
 const en: Translations = {
 	// Model descriptions
+	'model.deepseek-flash.detail': 'Vision and thinking mode',
+	'model.deepseek-flash.tooltip':
+		'DeepSeek V4.1 Flash with image and text input, thinking mode, and tool calling.',
+	'model.retirement.custom':
+		'**Legacy model entry.**  \nCheck that your provider supports DeepSeek V4.1 Flash.  \nSelect “DeepSeek V4.1 Flash” to use the new model.',
+	'model.retirement.flashRetired':
+		'**Retired.**  \nRequests are served by DeepSeek V4.1 Flash and billed at the Flash price.  \nSelect “DeepSeek V4.1 Flash” to use the new model.',
 	'model.flash.detail': 'Fast, general-purpose model',
 	'model.pro.detail': 'Most capable reasoning model',
+	'model.flash-vision-exp.detail': 'Experimental native vision model',
 	'model.flash.tooltip':
 		'Fast, efficient DeepSeek V4 model with reasoning close to V4 Pro and economical API pricing.',
 	'model.pro.tooltip':
 		'DeepSeek V4 model for agentic coding, broad world knowledge, and high-end reasoning.',
+	'model.pricing.currentPeak': 'Peak',
+	'model.pricing.currentOffPeak': 'Off-peak',
+	'model.pricing.inputLabel': 'Input',
+	'model.pricing.cacheHitInputLabel': 'Cache Input',
+	'model.pricing.outputLabel': 'Output',
+	'model.pricing.unitSuffix': ' per 1M tokens',
+	'model.pricing.periodStarts': '{0} starts {1}',
+	'model.pricing.transitionTime.today': 'at {0}',
+	'model.pricing.transitionTime.tomorrow': 'tomorrow at {0}',
+	'model.pricing.transitionTime.weekday': 'on {0} at {1}',
+	'model.flash-vision-exp.tooltip':
+		'Experimental DeepSeek V4 Flash vision model with native image and text input.',
 
 	// API Key
 	'auth.apiKeyRequiredDetail': 'Please run DeepSeek: Set API Key to configure.',
@@ -220,13 +275,30 @@ const en: Translations = {
 	'auth.emptyValidation': 'API key cannot be empty',
 	'auth.saved': 'DeepSeek API key saved.',
 	'auth.removed': 'DeepSeek API key removed.',
-	'auth.notConfigured':
-		'DeepSeek API key not configured. Run "DeepSeek: Set API Key" from the Command Palette.',
+	'auth.clearConfirm': 'Clear the saved API Key?',
+	'auth.clearDetail': 'You may need to set an API Key again before using the extension.',
+	'auth.clearAction': 'Clear API Key',
+	'auth.notConfigured': 'DeepSeek API key is not configured. Set an API key and try again.',
+
+	// Settings
+	'settings.resetBaseUrl.title': 'Reset DeepSeek Base URL',
+	'settings.resetBaseUrl.chooseScope': 'Choose a scope; only its custom URL will be removed',
+	'settings.resetBaseUrl.user': 'User Settings',
+	'settings.resetBaseUrl.workspace': 'Current Workspace',
+	'settings.resetBaseUrl.current': 'Configured URL: {0}',
+	'settings.resetBaseUrl.notConfigured': 'Not customized; no reset needed',
+	'settings.resetBaseUrl.after': 'Effective URL after reset: {0}',
+	'settings.resetBaseUrl.afterInherited':
+		'Inherits remaining configuration after reset; check Settings for the effective URL',
+	'settings.resetBaseUrl.failed':
+		'Failed to reset Base URL. Run "DeepSeek: Show Logs" for details.',
 
 	// Thinking Effort
 	'status.thinking': 'Thinking Effort',
 	'thinking.none': 'None',
 	'thinking.none.desc': 'Disable thinking for faster responses',
+	'thinking.low': 'Low',
+	'thinking.low.desc': 'Light reasoning for quick edits and simple tasks',
 	'thinking.high': 'High',
 	'thinking.high.desc': 'Recommended for most tasks',
 	'thinking.max': 'Max',
@@ -242,7 +314,7 @@ const en: Translations = {
 	'vision.action.configureProxy': 'Configure Vision Proxy',
 	'vision.panel.title': 'DeepSeek Vision Proxy',
 	'vision.panel.description':
-		'Configure a vision-capable model to turn image attachments into text before DeepSeek receives the request. DeepSeek receives the description, not the original images.',
+		'Configure a vision model that turns images into text for V4 Flash and Pro entries. V4.1 Flash and Vision Exp process original images directly.',
 	'vision.panel.source.vscodeLm': 'VS Code model',
 	'vision.panel.source.apiEndpoint': 'API endpoint',
 	'vision.panel.field.source': 'Vision proxy source',
@@ -253,10 +325,12 @@ const en: Translations = {
 	'vision.panel.field.modelId': 'Model ID',
 	'vision.panel.field.customHeaders': 'Custom headers JSON',
 	'vision.panel.field.extraBody': 'Additional request body JSON',
+	'vision.panel.field.timeoutMs': 'Request timeout (ms)',
 	'vision.panel.hint.customHeaders':
 		'Header values are stored with the profile. Put provider tokens in the API key field when possible.',
 	'vision.panel.hint.extraBody':
 		'Merged into the request body. Cannot override model, messages, input, or stream.',
+	'vision.panel.hint.timeoutMs': 'Leave empty for the default 30 seconds. Must be greater than 0.',
 	'vision.panel.placeholder.openaiEndpoint': 'https://api.example.com/v1/chat/completions',
 	'vision.panel.placeholder.openaiResponsesEndpoint': 'https://api.example.com/v1/responses',
 	'vision.panel.placeholder.anthropicEndpoint': 'https://api.example.com/v1/messages',
@@ -415,7 +489,6 @@ const en: Translations = {
 
 	// Extension
 	'extension.activateFailed': 'DeepSeek failed to activate. Run "DeepSeek: Show Logs" for details.',
-	'extension.deactivateFailed': 'Failed to prepare DeepSeek provider for deactivate',
 	'extension.welcomeFailed': 'Failed to show DeepSeek welcome prompt',
 	'extension.openRequestDumpsFolderFailed':
 		'Failed to open request dumps folder. Run "DeepSeek: Show Logs" for details.',

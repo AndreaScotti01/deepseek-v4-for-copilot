@@ -1,11 +1,8 @@
+import { isOfficialDeepSeekBaseUrl } from '../../endpoint';
 import { t } from '../../i18n';
 import { safeStringify } from '../../json';
-import {
-	API_PROVIDER_HTTP_ERROR_LINKS,
-	MAX_DIAGNOSTIC_FIELD_LENGTH,
-	OFFICIAL_DEEPSEEK_API_HOST,
-} from '../consts';
-import { getNetworkErrorCauseInfo, getNetworkErrorCode, getNetworkErrorMessage } from './network';
+import type { DeepSeekMessage } from '../../types';
+import { API_PROVIDER_HTTP_ERROR_LINKS, MAX_DIAGNOSTIC_FIELD_LENGTH } from '../consts';
 import type {
 	ApiProviderId,
 	DeepSeekRequestErrorKind,
@@ -15,6 +12,7 @@ import type {
 	HttpErrorLinkStatusKey,
 	RequestErrorContext,
 } from '../types';
+import { getNetworkErrorCauseInfo, getNetworkErrorCode, getNetworkErrorMessage } from './network';
 export type { DeepSeekRequestErrorKind, ErrorActionUrls } from '../types';
 
 const errorActionUrlStore = (() => {
@@ -160,6 +158,17 @@ export function createUserFacingError(error: Error): Error {
 	return displayError;
 }
 
+export function createApiKeyNotConfiguredError(): Error {
+	return createUserFacingError(
+		new Error(
+			formatMarkdownMessage(
+				t('auth.notConfigured'),
+				getConfigureApiKeyActions(errorActionUrlStore.get()),
+			),
+		),
+	);
+}
+
 function getHttpErrorMessage(status: number, createApiKeyUrl?: string): string {
 	switch (status) {
 		case 400:
@@ -255,8 +264,12 @@ function getUniversalHttpErrorActions(
 	status: number,
 	actionUrls: ErrorActionUrls,
 ): readonly ErrorActionLink[] {
+	return status === 401 ? getConfigureApiKeyActions(actionUrls) : [];
+}
+
+function getConfigureApiKeyActions(actionUrls: ErrorActionUrls): readonly ErrorActionLink[] {
 	const url = actionUrls.configureApiKey;
-	return status === 401 && url ? [{ labelKey: 'error.action.setApiKey', url }] : [];
+	return url ? [{ labelKey: 'error.action.setApiKey', url }] : [];
 }
 
 function getProviderHttpErrorActions(status: number, baseUrl: string): readonly ErrorActionLink[] {
@@ -302,8 +315,37 @@ function getRequestDiagnosticMessage(context: RequestErrorContext): string {
 		request.tool_choice ? `toolChoice=${safeStringify(request.tool_choice)}` : undefined,
 		`toolCount=${request.tools?.length ?? 0}`,
 		`messageCount=${request.messages.length}`,
-		`messageChars=${request.messages.reduce((total, message) => total + message.content.length, 0)}`,
+		`messageChars=${request.messages.reduce((total, message) => total + getContentChars(message.content), 0)}`,
+		`imageParts=${request.messages.reduce((total, message) => total + countImageParts(message.content), 0)}`,
 	);
+}
+
+/**
+ * Measure only the content values sent to the API. Serializing a multimodal
+ * content array would also count JSON keys and punctuation, making this
+ * diagnostic depend on the object representation rather than payload content.
+ * Image URL characters are included because data URLs can dominate request size.
+ */
+function getContentChars(content: DeepSeekMessage['content']): number {
+	if (typeof content === 'string') {
+		return content.length;
+	}
+	return content.reduce(
+		(total, part) => total + (part.type === 'text' ? part.text.length : part.image_url.url.length),
+		0,
+	);
+}
+
+/**
+ * Report image presence separately because messageChars alone cannot distinguish
+ * a large data URL from a long text prompt. Counting parts avoids logging or
+ * decoding image payloads while still making multimodal request failures useful.
+ */
+function countImageParts(content: DeepSeekMessage['content']): number {
+	if (typeof content === 'string') {
+		return 0;
+	}
+	return content.filter((part) => part.type === 'image_url').length;
 }
 
 function joinDiagnosticParts(...parts: (string | undefined)[]): string {
@@ -322,12 +364,7 @@ function escapeBoldText(value: string): string {
 }
 
 function identifyApiProvider(baseUrl: string): ApiProviderId | undefined {
-	try {
-		const hostname = new URL(baseUrl).hostname.toLowerCase();
-		return hostname === OFFICIAL_DEEPSEEK_API_HOST ? 'deepseek' : undefined;
-	} catch {
-		return undefined;
-	}
+	return isOfficialDeepSeekBaseUrl(baseUrl) ? 'deepseek' : undefined;
 }
 
 function getHttpErrorLinkStatusKey(status: number): HttpErrorLinkStatusKey | undefined {

@@ -1,29 +1,34 @@
 import vscode from 'vscode';
 import { AuthManager } from '../auth';
-import { DeepSeekClient } from '../client';
-import { getApiModelId, getBaseUrl, getMaxTokens } from '../config';
+import { createApiKeyNotConfiguredError, DeepSeekClient } from '../client';
+import { getApiModelId, getBaseUrl, getMaxTokens, getRequestHeaders } from '../config';
 import { MODELS } from '../consts';
-import { t } from '../i18n';
+import { isOfficialDeepSeekBaseUrl } from '../endpoint';
 import type { DeepSeekRequest } from '../types';
 import { convertMessages, countMessageChars } from './convert';
 import {
-	classifyDeepSeekRequest,
 	dumpDeepSeekRequest,
 	type CacheDiagnosticsRecorder,
 	type CacheDiagnosticsRun,
-	type RequestKind,
 } from './debug';
+import { resolveRequestHeaders } from './headers';
 import { getConfiguredThinkingEffort, type ModelConfigurationOptions } from './models';
 import type { ReplayMarkerMetadata } from './replay';
+import { classifyDeepSeekRequest, shouldForceThinkingNone, type RequestKind } from './routing';
 import type { ConversationSegment } from './segment';
 import { collectTrailingToolResultIds, prepareRequestTools } from './tools/request';
-import { resolveImageMessages, type VisionDescriber } from './vision';
+import {
+	finalizeVisionResolutionStats,
+	prepareVisionMessages,
+	type VisionDescriber,
+} from './vision';
 
 export interface PreparedChatRequest {
 	client: DeepSeekClient;
 	request: DeepSeekRequest;
 	isThinkingModel: boolean;
 	totalRequestChars: number;
+	hasNativeImages: boolean;
 	trailingToolResultIds: string[];
 	cacheDiagnostics: CacheDiagnosticsRun;
 	requestKind: RequestKind;
@@ -36,6 +41,7 @@ export interface PreparedChatRequest {
 export interface PrepareChatRequestOptions {
 	authManager: AuthManager;
 	globalStorageUri: vscode.Uri;
+	storageUri?: vscode.Uri;
 	modelInfo: vscode.LanguageModelChatInformation;
 	segment: ConversationSegment;
 	messages: readonly vscode.LanguageModelChatRequestMessage[];
@@ -48,6 +54,7 @@ export interface PrepareChatRequestOptions {
 export async function prepareChatRequest({
 	authManager,
 	globalStorageUri,
+	storageUri,
 	modelInfo,
 	segment,
 	messages,
@@ -58,28 +65,58 @@ export async function prepareChatRequest({
 }: PrepareChatRequestOptions): Promise<PreparedChatRequest> {
 	const apiKey = await authManager.getApiKey();
 	if (!apiKey) {
-		throw new Error(t('auth.notConfigured'));
+		throw createApiKeyNotConfiguredError();
 	}
 
-	const client = new DeepSeekClient(getBaseUrl(), apiKey);
+	const baseUrl = getBaseUrl();
+	const requestHeaders = resolveRequestHeaders(getRequestHeaders(), options, storageUri);
+	const client = new DeepSeekClient(baseUrl, apiKey, requestHeaders);
 	const modelDef = MODELS.find((m) => m.id === modelInfo.id);
-	const isThinkingModel = modelDef?.capabilities.thinking ?? false;
-	const thinkingEffort = getConfiguredThinkingEffort(options as ModelConfigurationOptions);
+	const thinkingCapability = modelDef?.capabilities.thinking;
+	const isThinkingModel = Boolean(thinkingCapability);
+	const nativeImageInput = modelDef?.capabilities.nativeImageInput === true;
 	const maxTokens = getMaxTokens();
+	const visionResolution = await prepareVisionMessages({
+		messages,
+		nativeImageInput,
+		token,
+		getDescriber: getVisionDescriber,
+	});
 
-	const visionResolution = await resolveImageMessages(messages, token, getVisionDescriber);
 	const resolvedMessages = visionResolution.messages;
-	const deepseekMessages = convertMessages(resolvedMessages, isThinkingModel);
+
+	const deepseekMessages = convertMessages(resolvedMessages, isThinkingModel, nativeImageInput);
+	finalizeVisionResolutionStats(visionResolution.stats, deepseekMessages);
 	const tools = prepareRequestTools(modelDef?.capabilities.toolCalling, options);
 
 	const totalRequestChars = countMessageChars(deepseekMessages);
-	const request: DeepSeekRequest = {
+	const hasNativeImages =
+		visionResolution.stats.imageHandlingMode === 'native' &&
+		visionResolution.stats.input.forwardedImageParts +
+			visionResolution.stats.tool.forwardedImageParts >
+			0;
+	const baseRequest: DeepSeekRequest = {
 		model: getApiModelId(modelInfo.id),
 		messages: deepseekMessages,
 		stream: true,
 		tools,
 		tool_choice: tools && tools.length > 0 ? ('auto' as const) : undefined,
 		max_tokens: maxTokens,
+	};
+	const requestKind = classifyDeepSeekRequest({
+		request: baseRequest,
+		inputMessages: messages,
+	});
+	const configuredThinkingEffort = thinkingCapability
+		? getConfiguredThinkingEffort(options as ModelConfigurationOptions, thinkingCapability)
+		: 'none';
+	// Only force helper requests into disabled thinking on the official API.
+	// Custom endpoints keep their configured effort to preserve pre-#137 request shape.
+	const forceNoneThinking =
+		shouldForceThinkingNone(requestKind) && isOfficialDeepSeekBaseUrl(baseUrl);
+	const thinkingEffort = forceNoneThinking ? 'none' : configuredThinkingEffort;
+	const request: DeepSeekRequest = {
+		...baseRequest,
 		...(isThinkingModel
 			? {
 					thinking: {
@@ -89,10 +126,6 @@ export async function prepareChatRequest({
 				}
 			: {}),
 	};
-	const requestKind = classifyDeepSeekRequest({
-		request,
-		inputMessages: messages,
-	});
 	dumpDeepSeekRequest(request, {
 		globalStorageUri,
 		segment,
@@ -129,6 +162,7 @@ export async function prepareChatRequest({
 		request,
 		isThinkingModel,
 		totalRequestChars,
+		hasNativeImages,
 		trailingToolResultIds: collectTrailingToolResultIds(deepseekMessages),
 		cacheDiagnostics: diagnosticsRun,
 		requestKind,

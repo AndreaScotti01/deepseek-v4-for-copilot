@@ -3,7 +3,6 @@ import { createUserFacingError } from '../client';
 import { logger } from '../logger';
 import type { DeepSeekToolCall, DeepSeekUsage } from '../types';
 import {
-	formatRequestLogLine,
 	observeCancellationToken,
 	type CacheDiagnosticsRun,
 	type ReplayMarkerReportTrigger,
@@ -14,6 +13,7 @@ import {
 	type ReplayMarkerMetadata,
 } from './replay';
 import type { PreparedChatRequest } from './request';
+import { formatRequestLogLine, type RequestKind } from './routing';
 
 interface ResponseStreamState {
 	accumulatedReasoning: string;
@@ -82,14 +82,14 @@ export function streamChatCompletion({
 				},
 
 				onUsage: (usage) => {
-					const charsPerToken = updateCharsPerToken(
-						prepared.totalRequestChars,
-						usage,
-						getCharsPerToken(),
-					);
-					setCharsPerToken(charsPerToken);
+					const charsPerToken = prepared.hasNativeImages
+						? getCharsPerToken()
+						: updateCharsPerToken(prepared.totalRequestChars, usage, getCharsPerToken());
+					if (!prepared.hasNativeImages) {
+						setCharsPerToken(charsPerToken);
+					}
 					prepared.cacheDiagnostics.onUsage(usage, charsPerToken);
-					reportCopilotContextUsage(progress, usage);
+					reportCopilotContextUsage(progress, usage, prepared.requestKind);
 				},
 			},
 			token,
@@ -267,6 +267,7 @@ function updateCharsPerToken(
 function reportCopilotContextUsage(
 	progress: vscode.Progress<vscode.LanguageModelResponsePart>,
 	usage: DeepSeekUsage,
+	requestKind: RequestKind,
 ): void {
 	const data = {
 		prompt_tokens: usage.prompt_tokens,
@@ -277,10 +278,14 @@ function reportCopilotContextUsage(
 		},
 	};
 
-	progress.report(
-		new vscode.LanguageModelDataPart(
-			new TextEncoder().encode(JSON.stringify(data)),
-			COPILOT_USAGE_DATA_PART_MIME,
-		),
-	);
+	try {
+		progress.report(
+			new vscode.LanguageModelDataPart(
+				new TextEncoder().encode(JSON.stringify(data)),
+				COPILOT_USAGE_DATA_PART_MIME,
+			),
+		);
+	} catch (error) {
+		logger.warn(formatRequestLogLine(requestKind, 'Failed to report usage data'), error);
+	}
 }

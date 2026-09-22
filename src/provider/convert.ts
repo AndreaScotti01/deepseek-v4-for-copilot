@@ -1,7 +1,17 @@
 import vscode from 'vscode';
 import { safeStringify } from '../json';
-import type { DeepSeekMessage, DeepSeekTool, DeepSeekToolCall } from '../types';
+import type {
+	DeepSeekContentPart,
+	DeepSeekMessage,
+	DeepSeekTool,
+	DeepSeekToolCall,
+} from '../types';
 import { parseFirstReplayMarker } from './replay';
+import {
+	isImageDataPart,
+	normalizeToolResult,
+	type NormalizedToolResult,
+} from './vision/normalize';
 
 /**
  * Convert VS Code chat messages to DeepSeek format.
@@ -10,6 +20,7 @@ import { parseFirstReplayMarker } from './replay';
 export function convertMessages(
 	messages: readonly vscode.LanguageModelChatRequestMessage[],
 	isThinkingModel: boolean,
+	nativeImageInput: boolean,
 ): DeepSeekMessage[] {
 	const result: DeepSeekMessage[] = [];
 
@@ -17,13 +28,27 @@ export function convertMessages(
 		const role = mapRole(message.role);
 
 		let content = '';
+		const nativeVisionContentParts: DeepSeekContentPart[] = [];
 		let thinkingContent = '';
 		const toolCalls: DeepSeekToolCall[] = [];
-		const toolResults: Array<{ callId: string; content: string }> = [];
+		const toolResults: NormalizedToolResult[] = [];
 
 		for (const part of message.content) {
 			if (part instanceof vscode.LanguageModelTextPart) {
 				content += part.value;
+				if (nativeImageInput && role === 'user') {
+					nativeVisionContentParts.push({
+						type: 'text',
+						text: part.value,
+					});
+				}
+			} else if (nativeImageInput && role === 'user' && isImageDataPart(part)) {
+				nativeVisionContentParts.push({
+					type: 'image_url',
+					image_url: {
+						url: toImageDataUrl(part),
+					},
+				});
 			} else if (isLanguageModelThinkingPart(part)) {
 				thinkingContent += normalizeThinkingPartText(part.value);
 			} else if (part instanceof vscode.LanguageModelToolCallPart) {
@@ -36,16 +61,7 @@ export function convertMessages(
 					},
 				});
 			} else if (part instanceof vscode.LanguageModelToolResultPart) {
-				let toolContent = '';
-				for (const item of part.content) {
-					if (item instanceof vscode.LanguageModelTextPart) {
-						toolContent += item.value;
-					}
-				}
-				toolResults.push({
-					callId: part.callId,
-					content: toolContent || safeStringify(part.content),
-				});
+				toolResults.push(normalizeToolResult(part));
 			}
 		}
 
@@ -68,7 +84,12 @@ export function convertMessages(
 				result.push(msg);
 			}
 		} else {
-			if (content) {
+			if (nativeImageInput && role === 'user' && nativeVisionContentParts.length > 0) {
+				result.push({
+					role: 'user',
+					content: nativeVisionContentParts,
+				});
+			} else if (content) {
 				result.push({
 					role: role as 'user' | 'assistant',
 					content: content,
@@ -80,13 +101,53 @@ export function convertMessages(
 		for (const tr of toolResults) {
 			result.push({
 				role: 'tool',
-				content: tr.content,
+				content: convertToolResultContent(tr, nativeImageInput),
 				tool_call_id: tr.callId,
 			});
 		}
 	}
 
 	return result;
+}
+
+function toImageDataUrl(part: { mimeType: string; data: Uint8Array }): string {
+	return `data:${part.mimeType};base64,${Buffer.from(part.data).toString('base64')}`;
+}
+
+function convertToolResultContent(
+	toolResult: NormalizedToolResult,
+	nativeImageInput: boolean,
+): DeepSeekMessage['content'] {
+	const hasImages = toolResult.parts.some((part) => part.type === 'image');
+	if (!nativeImageInput || !hasImages) {
+		const text = toolResult.parts
+			.filter((part) => part.type === 'text')
+			.map((part) => part.text)
+			.join('');
+		if (text) {
+			return text;
+		}
+
+		// Do not stringify image bytes into a text-only model request. Preserve the
+		// existing fallback for genuinely non-image tool-result content.
+		const fallbackContent = hasImages
+			? toolResult.parts.filter((part) => part.type === 'other').map((part) => part.value)
+			: toolResult.originalContent;
+		return fallbackContent.length > 0 ? safeStringify(fallbackContent) : '';
+	}
+
+	const content: DeepSeekContentPart[] = [];
+	for (const part of toolResult.parts) {
+		if (part.type === 'text') {
+			content.push({ type: 'text', text: part.text });
+		} else if (part.type === 'image') {
+			content.push({
+				type: 'image_url',
+				image_url: { url: toImageDataUrl(part) },
+			});
+		}
+	}
+	return content;
 }
 
 function getReasoningContent(
@@ -147,13 +208,31 @@ export function convertTools(
 export function countMessageChars(messages: DeepSeekMessage[]): number {
 	let total = 0;
 	for (const msg of messages) {
-		total += msg.content?.length ?? 0;
+		total += getMessageContentChars(msg.content);
 		total += msg.reasoning_content?.length ?? 0;
 		if (msg.tool_calls) {
 			for (const tc of msg.tool_calls) {
 				total += tc.function?.name?.length ?? 0;
 				total += tc.function?.arguments?.length ?? 0;
 			}
+		}
+	}
+	return total;
+}
+
+function getMessageContentChars(content: DeepSeekMessage['content']): number {
+	if (typeof content === 'string') {
+		return content.length;
+	}
+
+	let total = 0;
+	for (const part of content) {
+		if (part.type === 'text') {
+			total += part.text.length;
+		} else if (part.type === 'image_url') {
+			// Do not count base64 URL chars. Native-image requests are excluded from
+			// adaptive charsPerToken updates, and image cost is handled separately.
+			total += 0;
 		}
 	}
 	return total;

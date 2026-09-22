@@ -5,6 +5,7 @@ import type {
 	DeepSeekRequest,
 	DeepSeekStreamChunk,
 	DeepSeekToolCall,
+	DeepSeekUsage,
 	StreamCallbacks,
 } from '../types';
 import { createHttpError, formatRequestError, normalizeRequestError } from './error';
@@ -17,6 +18,7 @@ export class DeepSeekClient {
 	constructor(
 		private readonly baseUrl: string,
 		private readonly apiKey: string,
+		private readonly requestHeaders: Readonly<Record<string, string>> = {},
 	) {}
 
 	/**
@@ -43,12 +45,17 @@ export class DeepSeekClient {
 				stream_options: { include_usage: true },
 			};
 
+			const headers = new Headers({
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${this.apiKey}`,
+			});
+			for (const [name, value] of Object.entries(this.requestHeaders)) {
+				headers.set(name, value);
+			}
+
 			const response = await fetch(`${this.baseUrl}/chat/completions`, {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${this.apiKey}`,
-				},
+				headers,
 				body: safeStringify(requestBody),
 				signal: controller.signal,
 			});
@@ -64,6 +71,7 @@ export class DeepSeekClient {
 			const reader = response.body.getReader();
 			const decoder = new TextDecoder();
 			let buffer = '';
+			let latestUsage: DeepSeekUsage | undefined;
 
 			// Accumulate tool call deltas by index, then emit on finish_reason=stop/tool_calls
 			const pendingToolCalls = new Map<number, DeepSeekToolCall>();
@@ -97,6 +105,7 @@ export class DeepSeekClient {
 							callbacks.onToolCall(tc);
 						}
 						pendingToolCalls.clear();
+						reportFinalUsage(callbacks, latestUsage);
 						callbacks.onDone();
 						return;
 					}
@@ -110,9 +119,10 @@ export class DeepSeekClient {
 						const chunk: DeepSeekStreamChunk = JSON.parse(jsonStr);
 						const choice = chunk.choices?.[0];
 
-						// Capture usage stats from the API for token-count calibration.
-						if (chunk.usage && callbacks.onUsage) {
-							callbacks.onUsage(chunk.usage);
+						// Some OpenAI-compatible providers emit usage on every streaming chunk.
+						// Keep only the latest value and report it once when the stream completes.
+						if (chunk.usage) {
+							latestUsage = chunk.usage;
 						}
 
 						if (!choice) {
@@ -166,6 +176,7 @@ export class DeepSeekClient {
 				}
 			}
 
+			reportFinalUsage(callbacks, latestUsage);
 			callbacks.onDone();
 		} catch (error) {
 			if (isAbortError(error) && cancellationToken?.isCancellationRequested) {
@@ -178,6 +189,13 @@ export class DeepSeekClient {
 			cancelListener?.dispose();
 		}
 	}
+}
+
+function reportFinalUsage(callbacks: StreamCallbacks, usage: DeepSeekUsage | undefined): void {
+	if (!usage || !callbacks.onUsage) {
+		return;
+	}
+	callbacks.onUsage(usage);
 }
 
 function isAbortError(error: unknown): boolean {

@@ -10,7 +10,7 @@ export interface VisionProxyPanelState {
 	config?: VisionProxyConfig;
 	hasApiKey: boolean;
 	lmModels: VisionLanguageModelOption[];
-	selectedLmModelId?: string;
+	selectedLmModelKey?: string;
 }
 
 export function getVisionProxyPanelHtml(
@@ -66,8 +66,8 @@ export function getVisionProxyPanelHtml(
 				</div>
 				<div id="lmSection" class="section">
 					<div class="field">
-						<label for="lmModelId">${escapeHtml(strings.fieldVisionModel)}</label>
-						<select id="lmModelId"></select>
+						<label for="lmModelKey">${escapeHtml(strings.fieldVisionModel)}</label>
+						<select id="lmModelKey"></select>
 						<div id="lmModelCost" class="hint" hidden></div>
 					</div>
 				</div>
@@ -109,6 +109,11 @@ export function getVisionProxyPanelHtml(
   &quot;max_tokens&quot;: 1024
 }"></textarea>
 						<div class="hint">${escapeHtml(strings.hintExtraBody)}</div>
+					</div>
+					<div class="field">
+						<label for="timeoutMs">${escapeHtml(strings.fieldTimeoutMs)}</label>
+						<input id="timeoutMs" type="number" min="1" max="2147483647" step="1" placeholder="30000">
+						<div class="hint">${escapeHtml(strings.hintTimeoutMs)}</div>
 					</div>
 				</div>
 			</fieldset>
@@ -170,8 +175,10 @@ function getVisionProxyPanelStrings() {
 		fieldModelId: t('vision.panel.field.modelId'),
 		fieldCustomHeaders: t('vision.panel.field.customHeaders'),
 		fieldExtraBody: t('vision.panel.field.extraBody'),
+		fieldTimeoutMs: t('vision.panel.field.timeoutMs'),
 		hintCustomHeaders: t('vision.panel.hint.customHeaders'),
 		hintExtraBody: t('vision.panel.hint.extraBody'),
+		hintTimeoutMs: t('vision.panel.hint.timeoutMs'),
 		placeholderOpenAIEndpoint: t('vision.panel.placeholder.openaiEndpoint'),
 		placeholderOpenAIResponsesEndpoint: t('vision.panel.placeholder.openaiResponsesEndpoint'),
 		placeholderAnthropicEndpoint: t('vision.panel.placeholder.anthropicEndpoint'),
